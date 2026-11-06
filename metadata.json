@@ -1,0 +1,6 @@
+{
+  "name": "Prada Store",
+  "description": "Control de inventario de teléfonos importados desde eBay a Venezuela vía casillero Zoom con cálculo de costos multimoneda (USDT y BCV) y análisis de ganancias.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,108 @@
+import React from 'react';
+import { Building2, TrendingUp, RefreshCw, Calendar, Zap } from 'lucide-react';
+
+interface RatesBarProps {
+  bcvRate: number;
+  saleRate: number;
+  bcvEffectiveDate?: string;
+  bcvIsTomorrow?: boolean;
+  isLoading: boolean;
+  onUpdateBcv: (val: number) => void;
+  onUpdateSale: (val: number) => void;
+  onRefreshAll: () => void;
+  onSyncAll?: () => void;
+}
+
+export const RatesBar: React.FC<RatesBarProps> = ({
+  bcvRate,
+  saleRate,
+  bcvEffectiveDate,
+  bcvIsTomorrow,
+  isLoading,
+  onUpdateBcv,
+  onUpdateSale,
+  onRefreshAll,
+  onSyncAll
+}) => {
+  const spreadPct = bcvRate > 0 ? (((saleRate - bcvRate) / bcvRate) * 100).toFixed(1) : '0.0';
+
+  return (
+    <div className="bg-slate-900 border-b border-slate-800 px-3 py-1.5 shadow-sm">
+      <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs">
+        
+        {/* Tasas en una sola línea */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+          {/* Tasa BCV */}
+          <div className="flex items-center gap-2 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-emerald-500/25">
+            <Building2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            <span className="text-[11px] font-bold text-slate-200 whitespace-nowrap">Compra BCV:</span>
+            <div className="relative flex items-center">
+              <input
+                type="number"
+                value={bcvRate || ''}
+                onChange={e => onUpdateBcv(parseFloat(e.target.value) || 0)}
+                className="w-24 bg-slate-950 border border-emerald-500/40 rounded-md py-0.5 pl-1.5 pr-6 text-emerald-300 font-bold font-mono text-xs focus:outline-none h-6.5 shadow-inner"
+                step="any"
+              />
+              <span className="absolute right-1 text-[8px] font-mono text-slate-400">Bs</span>
+            </div>
+            {bcvIsTomorrow && (
+              <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-300 bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 rounded whitespace-nowrap">
+                <Calendar className="h-2.5 w-2.5 text-amber-400" />
+                Mañana
+              </span>
+            )}
+          </div>
+
+          {/* Tasa Venta P2P */}
+          <div className="flex items-center gap-2 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-amber-500/25">
+            <TrendingUp className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span className="text-[11px] font-bold text-slate-200 whitespace-nowrap">Venta Mdo (P2P):</span>
+            <div className="relative flex items-center">
+              <input
+                type="number"
+                value={saleRate || ''}
+                onChange={e => onUpdateSale(parseFloat(e.target.value) || 0)}
+                className="w-24 bg-slate-950 border border-amber-500/40 rounded-md py-0.5 pl-1.5 pr-6 text-amber-300 font-bold font-mono text-xs focus:outline-none h-6.5 shadow-inner"
+                step="any"
+              />
+              <span className="absolute right-1 text-[8px] font-mono text-slate-400">Bs</span>
+            </div>
+          </div>
+
+          {/* Brecha Cambiaria */}
+          <div className="hidden lg:flex items-center gap-1.5 bg-slate-800/50 px-2 py-1 rounded-lg border border-slate-700 font-mono text-[10px]">
+            <span className="text-slate-400">Brecha:</span>
+            <span className={`font-bold ${saleRate >= bcvRate ? 'text-sky-400' : 'text-red-400'}`}>
+              {saleRate >= bcvRate ? '+' : ''}{spreadPct}%
+            </span>
+          </div>
+        </div>
+
+        {/* Botones de acción */}
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            type="button"
+            onClick={onRefreshAll}
+            disabled={isLoading}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-[11px] font-semibold cursor-pointer disabled:opacity-50 h-6.5"
+          >
+            <RefreshCw className={`h-2.5 w-2.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Actualizar Todo</span>
+          </button>
+          {onSyncAll && (
+            <button
+              type="button"
+              onClick={onSyncAll}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium cursor-pointer h-6.5"
+            >
+              <Zap className="h-2.5 w-2.5 text-amber-400" />
+              <span>Sincronizar</span>
+            </button>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+};
