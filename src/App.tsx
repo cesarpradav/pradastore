@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { onSnapshot } from 'firebase/firestore';
 import { PhoneItem, CurrencyRates, Customer, WarrantyOrder, SellerProfile } from './types';
 import { 
   INITIAL_PHONES, 
@@ -34,26 +32,20 @@ import { CloudSyncModal } from './components/CloudSyncModal';
 import { ZoomSyncModal } from './components/ZoomSyncModal';
 import { fetchLiveRates } from './services/ratesService';
 import {
-  auth,
+  AuthUser,
+  onAuthStateChange,
   loginWithGoogle,
-  logoutFirebase,
-  testConnection,
-  savePhoneToFirestore,
-  deletePhoneFromFirestore,
-  saveCustomerToFirestore,
-  deleteCustomerFromFirestore,
-  saveOrderToFirestore,
-  deleteOrderFromFirestore,
-  saveProfileToFirestore,
-  syncAllToFirestore,
+  logoutSupabase,
   getCloudData,
-  getUserPhonesRef,
-  getUserCustomersRef,
-  getUserOrdersRef,
-  getUserProfileDoc,
-  handleFirestoreError,
-  OperationType,
-} from './services/firebase';
+  savePhoneToSupabase,
+  deletePhoneFromSupabase,
+  saveCustomerToSupabase,
+  deleteCustomerFromSupabase,
+  saveOrderToSupabase,
+  deleteOrderFromSupabase,
+  saveProfileToSupabase,
+  syncAllToSupabase,
+} from './services/supabaseDatabase';
 import { 
   Package, 
   HelpCircle, 
@@ -260,8 +252,8 @@ export default function App() {
     handleRefreshLiveRates(false);
   }, [handleRefreshLiveRates]);
 
-  // Firebase Auth & Cloud Sync States
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  // Supabase Auth & Cloud Sync States
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isSyncingCloud, setIsSyncingCloud] = useState<boolean>(false);
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState<boolean>(false);
   const [cloudNotification, setCloudNotification] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -270,7 +262,7 @@ export default function App() {
   const performTwoWaySync = useCallback(async (
     forcePush: boolean = false, 
     forcePull: boolean = false,
-    targetUser?: User | null
+    targetUser?: AuthUser | null
   ) => {
     const userToSync = targetUser || currentUser;
     if (!userToSync) return;
@@ -281,7 +273,7 @@ export default function App() {
 
       // CASO A: Forzar Subida (Push) de este dispositivo a la nube
       if (forcePush) {
-        await syncAllToFirestore(userToSync.uid, phones, customers, orders, sellerProfile);
+        await syncAllToSupabase(userToSync.uid, phones, customers, orders, sellerProfile);
         setCloudNotification({
           message: `¡Nube actualizada! Se respaldaron ${phones.length} iPhones y ${orders.length} notas en tu cuenta ${userToSync.email}.`,
           type: 'success',
@@ -296,7 +288,7 @@ export default function App() {
         setOrders(cloud.orders);
         if (cloud.profile) setSellerProfile(cloud.profile);
         setCloudNotification({
-          message: `¡Descarga exitosa! Se cargaron ${cloud.phones.length} iPhones desde tu cuenta de Google.`,
+          message: `¡Descarga exitosa! Se cargaron ${cloud.phones.length} iPhones desde tu cuenta.`,
           type: 'success',
         });
         return;
@@ -317,7 +309,7 @@ export default function App() {
 
       // CASO D: Este dispositivo tiene datos y la nube estaba vacía (primer dispositivo)
       if (phones.length > 0 && cloud.phones.length === 0) {
-        await syncAllToFirestore(userToSync.uid, phones, customers, orders, sellerProfile);
+        await syncAllToSupabase(userToSync.uid, phones, customers, orders, sellerProfile);
         setCloudNotification({
           message: `¡Inventario subido a la nube! ${phones.length} iPhones quedaron guardados para verse en tus otros dispositivos.`,
           type: 'success',
@@ -328,9 +320,7 @@ export default function App() {
       // CASO E: Ambos tienen datos (Unificación / Merge Inteligente)
       if (cloud.phones.length > 0 && phones.length > 0) {
         const mergedPhonesMap = new Map<string, PhoneItem>();
-        // Base de la nube
         cloud.phones.forEach((p) => mergedPhonesMap.set(p.id, p));
-        // Incorporar locales
         phones.forEach((local) => {
           const cloudItem = mergedPhonesMap.get(local.id);
           if (!cloudItem) {
@@ -364,8 +354,8 @@ export default function App() {
         const unifiedProfile = cloud.profile || sellerProfile;
         if (cloud.profile) setSellerProfile(cloud.profile);
 
-        // Guardar la unificación en Firestore para que el otro dispositivo también la reciba
-        await syncAllToFirestore(userToSync.uid, unifiedPhones, unifiedCust, unifiedOrders, unifiedProfile);
+        // Guardar la unificación en Supabase
+        await syncAllToSupabase(userToSync.uid, unifiedPhones, unifiedCust, unifiedOrders, unifiedProfile);
 
         setCloudNotification({
           message: `¡Sincronización completa! ${unifiedPhones.length} iPhones unificados entre todos tus dispositivos.`,
@@ -383,13 +373,11 @@ export default function App() {
     }
   }, [currentUser, phones, customers, orders, sellerProfile]);
 
-  // Inicializar Firebase Auth y probar conexión inicial
+  // Inicializar Supabase Auth
   useEffect(() => {
-    testConnection().catch(console.warn);
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChange(async (user) => {
       setCurrentUser(user);
       if (user) {
-        // Ejecutar verificación y sincronización automática inicial al detectar usuario
         const cloud = await getCloudData(user.uid);
         if (cloud.phones.length > 0 && phones.length === 0) {
           setPhones(cloud.phones);
@@ -397,107 +385,24 @@ export default function App() {
           setOrders(cloud.orders);
           if (cloud.profile) setSellerProfile(cloud.profile);
         } else if (phones.length > 0 && cloud.phones.length === 0) {
-          syncAllToFirestore(user.uid, phones, customers, orders, sellerProfile).catch(console.error);
+          syncAllToSupabase(user.uid, phones, customers, orders, sellerProfile).catch(console.error);
         }
       }
     });
     return () => unsubscribe();
   }, []);
 
-  // Sincronización en tiempo real con Firestore cuando el usuario está conectado
-  useEffect(() => {
-    if (!currentUser) return;
-
-    // 1. Escuchar Teléfonos en Firestore en tiempo real
-    const phonesUnsub = onSnapshot(
-      getUserPhonesRef(currentUser.uid),
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const cloudPhones: PhoneItem[] = [];
-          snapshot.forEach((docSnap) => {
-            cloudPhones.push(docSnap.data() as PhoneItem);
-          });
-          setPhones(cloudPhones);
-        }
-        setIsSyncingCloud(false);
-      },
-      (err) => {
-        console.warn('Advertencia en escucha de teléfonos:', err);
-        setIsSyncingCloud(false);
-      }
-    );
-
-    // 2. Escuchar Clientes en Firestore en tiempo real
-    const customersUnsub = onSnapshot(
-      getUserCustomersRef(currentUser.uid),
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const cloudCusts: Customer[] = [];
-          snapshot.forEach((docSnap) => {
-            cloudCusts.push(docSnap.data() as Customer);
-          });
-          setCustomers(cloudCusts);
-        }
-      },
-      (err) => {
-        console.warn('Advertencia en escucha de clientes:', err);
-      }
-    );
-
-    // 3. Escuchar Órdenes de Garantía en Firestore en tiempo real
-    const ordersUnsub = onSnapshot(
-      getUserOrdersRef(currentUser.uid),
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const cloudOrders: WarrantyOrder[] = [];
-          snapshot.forEach((docSnap) => {
-            cloudOrders.push(docSnap.data() as WarrantyOrder);
-          });
-          setOrders(cloudOrders);
-        }
-      },
-      (err) => {
-        console.warn('Advertencia en escucha de órdenes:', err);
-      }
-    );
-
-    // 4. Escuchar Perfil del Vendedor en Firestore
-    const profileUnsub = onSnapshot(
-      getUserProfileDoc(currentUser.uid),
-      (docSnap) => {
-        if (docSnap.exists()) {
-          const cloudProf = docSnap.data() as SellerProfile;
-          setSellerProfile(cloudProf);
-        }
-      },
-      (err) => {
-        console.warn('Advertencia en escucha de perfil:', err);
-      }
-    );
-
-    return () => {
-      phonesUnsub();
-      customersUnsub();
-      ordersUnsub();
-      profileUnsub();
-    };
-  }, [currentUser]);
-
   // Acciones de autenticación y respaldo en la nube
   const handleLoginGoogle = async () => {
     try {
       setIsSyncingCloud(true);
-      const user = await loginWithGoogle();
-      setCurrentUser(user);
-      await performTwoWaySync(false, false, user);
+      await loginWithGoogle();
     } catch (err: any) {
       console.error('Error al iniciar sesión con Google:', err);
-      if (!err?.message?.includes('popup-closed-by-user')) {
-        setCloudNotification({
-          message: `Detalle de autenticación: ${err?.message || 'Revisa tu conexión a Google'}`,
-          type: 'error',
-        });
-      }
+      setCloudNotification({
+        message: `Detalle de autenticación: ${err?.message || 'Error conectando con Google'}`,
+        type: 'error',
+      });
     } finally {
       setIsSyncingCloud(false);
     }
@@ -505,7 +410,7 @@ export default function App() {
 
   const handleLogoutGoogle = async () => {
     try {
-      await logoutFirebase();
+      await logoutSupabase();
       setCurrentUser(null);
       setCloudNotification({
         message: 'Sesión cerrada. Tu inventario continúa seguro en la nube y guardado localmente.',
@@ -595,8 +500,8 @@ export default function App() {
       }
 
       if (currentUser) {
-        savePhoneToFirestore(currentUser.uid, updatedPhone).catch((err) =>
-          console.error('Error saving phone to Firestore', err)
+        savePhoneToSupabase(currentUser.uid, updatedPhone).catch((err) =>
+          console.error('Error saving phone to Supabase', err)
         );
       }
     } else {
@@ -652,8 +557,8 @@ export default function App() {
       setPhones((prev) => [newPhone, ...prev]);
 
       if (currentUser) {
-        savePhoneToFirestore(currentUser.uid, newPhone).catch((err) =>
-          console.error('Error creating phone in Firestore', err)
+        savePhoneToSupabase(currentUser.uid, newPhone).catch((err) =>
+          console.error('Error creating phone in Supabase', err)
         );
       }
     }
@@ -666,8 +571,8 @@ export default function App() {
     setIsDetailModalOpen(false);
     setSelectedPhone(null);
     if (currentUser) {
-      deletePhoneFromFirestore(currentUser.uid, id).catch((err) =>
-        console.error('Error deleting phone from Firestore', err)
+      deletePhoneFromSupabase(currentUser.uid, id).catch((err) =>
+        console.error('Error deleting phone from Supabase', err)
       );
     }
   };
@@ -685,7 +590,7 @@ export default function App() {
             updatedAt: new Date().toISOString(),
           };
           if (currentUser) {
-            savePhoneToFirestore(currentUser.uid, updated).catch(console.error);
+            savePhoneToSupabase(currentUser.uid, updated).catch(console.error);
           }
           return updated;
         }
@@ -707,7 +612,7 @@ export default function App() {
             updatedAt: new Date().toISOString(),
           };
           if (currentUser) {
-            savePhoneToFirestore(currentUser.uid, updated).catch(console.error);
+            savePhoneToSupabase(currentUser.uid, updated).catch(console.error);
           }
           return updated;
         }
@@ -732,7 +637,7 @@ export default function App() {
             updatedAt: new Date().toISOString(),
           };
           if (currentUser) {
-            savePhoneToFirestore(currentUser.uid, updated).catch(console.error);
+            savePhoneToSupabase(currentUser.uid, updated).catch(console.error);
           }
           return updated;
         }
@@ -748,7 +653,7 @@ export default function App() {
         if (p.id === id) {
           const updated: PhoneItem = { ...p, status: newStatus, updatedAt: new Date().toISOString() };
           if (currentUser) {
-            savePhoneToFirestore(currentUser.uid, updated).catch(console.error);
+            savePhoneToSupabase(currentUser.uid, updated).catch(console.error);
           }
           return updated;
         }
@@ -770,7 +675,7 @@ export default function App() {
             updatedAt: new Date().toISOString(),
           };
           if (currentUser) {
-            savePhoneToFirestore(currentUser.uid, updated).catch(console.error);
+            savePhoneToSupabase(currentUser.uid, updated).catch(console.error);
           }
           return updated;
         }
@@ -803,7 +708,7 @@ export default function App() {
             updatedAt: new Date().toISOString(),
           };
           if (currentUser) {
-            savePhoneToFirestore(currentUser.uid, updated).catch(console.error);
+            savePhoneToSupabase(currentUser.uid, updated).catch(console.error);
           }
           return updated;
         }
@@ -823,7 +728,7 @@ export default function App() {
 
     if (currentUser) {
       for (const phone of updatedPhones) {
-        await savePhoneToFirestore(currentUser.uid, phone);
+        await savePhoneToSupabase(currentUser.uid, phone);
       }
     }
 
@@ -843,7 +748,7 @@ export default function App() {
     // 1. Guardar nueva orden
     setOrders((prev) => [newOrder, ...prev]);
     if (currentUser) {
-      saveOrderToFirestore(currentUser.uid, newOrder).catch(console.error);
+      saveOrderToSupabase(currentUser.uid, newOrder).catch(console.error);
     }
 
     // 2. Si vino un cliente nuevo, guardarlo en la base de clientes
@@ -854,7 +759,7 @@ export default function App() {
         return [newCustomer, ...prev];
       });
       if (currentUser) {
-        saveCustomerToFirestore(currentUser.uid, newCustomer).catch(console.error);
+        saveCustomerToSupabase(currentUser.uid, newCustomer).catch(console.error);
       }
     }
 
@@ -870,7 +775,7 @@ export default function App() {
               updatedAt: new Date().toISOString(),
             } as PhoneItem;
             if (currentUser) {
-              savePhoneToFirestore(currentUser.uid, soldItem).catch(console.error);
+              savePhoneToSupabase(currentUser.uid, soldItem).catch(console.error);
             }
             return soldItem;
           }
@@ -889,7 +794,7 @@ export default function App() {
     setOrders((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
     setSelectedWarrantyOrder(updatedOrder);
     if (currentUser) {
-      saveOrderToFirestore(currentUser.uid, updatedOrder).catch(console.error);
+      saveOrderToSupabase(currentUser.uid, updatedOrder).catch(console.error);
     }
   };
 
@@ -928,14 +833,14 @@ export default function App() {
       );
 
       if (currentUser) {
-        savePhoneToFirestore(currentUser.uid, restoredPhone).catch(console.error);
+        savePhoneToSupabase(currentUser.uid, restoredPhone).catch(console.error);
       }
     }
 
-    // 2. Eliminar la nota de entrega de la lista y de Firestore
+    // 2. Eliminar la nota de entrega de la lista y de Supabase
     setOrders((prev) => prev.filter((o) => o.id !== order.id));
     if (currentUser) {
-      deleteOrderFromFirestore(currentUser.uid, order.id).catch(console.error);
+      deleteOrderFromSupabase(currentUser.uid, order.id).catch(console.error);
     }
 
     // 3. Cerrar el modal del documento si estaba abierto
@@ -987,7 +892,7 @@ export default function App() {
 
       setPhones((prev) => prev.map((p) => (p.id === phone.id ? restoredPhone : p)));
       if (currentUser) {
-        savePhoneToFirestore(currentUser.uid, restoredPhone).catch(console.error);
+        savePhoneToSupabase(currentUser.uid, restoredPhone).catch(console.error);
       }
 
       setCloudNotification({
@@ -1008,7 +913,7 @@ export default function App() {
       return [customer, ...prev];
     });
     if (currentUser) {
-      saveCustomerToFirestore(currentUser.uid, customer).catch(console.error);
+      saveCustomerToSupabase(currentUser.uid, customer).catch(console.error);
     }
   };
 
@@ -1099,7 +1004,7 @@ export default function App() {
         onOpenCloudSyncModal={() => setIsCloudSyncModalOpen(true)}
       />
 
-      {/* Notificación de Nube / Firestore */}
+      {/* Notificación de Nube */}
       {cloudNotification && (
         <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-3">
           <div className={`flex items-center justify-between gap-3 p-3 rounded-xl border text-xs shadow-xs ${
@@ -1124,7 +1029,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Banner de Bienvenida a Firebase (Si no está conectado con Google) */}
+      {/* Banner de Bienvenida (Si no está conectado con Google) */}
       {!currentUser && (
         <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-3">
           <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-900 border border-emerald-500/30 text-xs text-slate-200 shadow-xs">
@@ -1134,7 +1039,7 @@ export default function App() {
               </div>
               <div>
                 <p className="font-bold text-white">
-                  Respaldo en la nube activo con Firebase Firestore
+                  Respaldo en la nube activo con Supabase
                 </p>
                 <p className="text-slate-400 text-[11px]">
                   Inicia sesión con tu cuenta de Google para que tu inventario no se borre nunca y puedas gestionarlo desde cualquier celular o PC.
@@ -1389,7 +1294,7 @@ export default function App() {
         onSaveProfile={(profile) => {
           setSellerProfile(profile);
           if (currentUser) {
-            saveProfileToFirestore(currentUser.uid, profile).catch(console.error);
+            saveProfileToSupabase(currentUser.uid, profile).catch(console.error);
           }
         }}
       />
@@ -1451,7 +1356,7 @@ export default function App() {
           if (newOrders) setOrders(newOrders);
           if (newProfile) setSellerProfile(newProfile);
           if (currentUser) {
-            syncAllToFirestore(
+            syncAllToSupabase(
               currentUser.uid,
               newItems,
               newCustomers || customers,

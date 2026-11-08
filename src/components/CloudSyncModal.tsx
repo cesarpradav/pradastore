@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { User } from 'firebase/auth';
 import { 
   X, 
   Cloud, 
@@ -16,12 +15,12 @@ import {
   Laptop
 } from 'lucide-react';
 import { PhoneItem, Customer, WarrantyOrder, SellerProfile } from '../types';
-import { getCloudData } from '../services/firebase';
+import { getCloudData, AuthUser } from '../services/supabaseDatabase';
 
 interface CloudSyncModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentUser: User | null;
+  currentUser: AuthUser | null;
   isSyncing: boolean;
   localPhones: PhoneItem[];
   localCustomers: Customer[];
