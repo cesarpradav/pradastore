@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 // Configuración por defecto (o mediante process.env)
 const DEFAULT_SUPABASE_URL = process.env.SUPABASE_URL || 'https://jkzsajxrxcnrwaqsskcs.supabase.co';
-const DEFAULT_SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const DEFAULT_SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_9aWH_-Kngvu75coxx59G9g_iV0BS4g2';
 const COTIZAVE_API_URL = 'https://api.cotizave.com/v1/fx/rates';
 const DEFAULT_COTIZAVE_KEY = process.env.COTIZAVE_API_KEY || '';
 
