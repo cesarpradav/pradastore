@@ -11,9 +11,12 @@ import {
   Sparkles,
   ExternalLink,
   Layers,
-  Smartphone
+  Smartphone,
+  Download,
+  Image as ImageIcon
 } from 'lucide-react';
 import { formatUsdt, formatBs, usdtToBs } from '../utils/calculations';
+import { getPresetIPhoneImage } from '../data/iphoneImages';
 
 interface SocialPostModalProps {
   isOpen: boolean;
@@ -33,14 +36,15 @@ export const SocialPostModal: React.FC<SocialPostModalProps> = ({
   rates,
 }) => {
   const [activeChannel, setActiveChannel] = useState<ChannelType>('whatsapp');
-  const [storeName, setStoreName] = useState('TechStore Vzla');
-  const [contactPhone, setContactPhone] = useState('0414-1234567');
-  const [locationCity, setLocationCity] = useState('Barinas / Envíos Zoom a todo el país');
-  const [includeBsPrice, setIncludeBsPrice] = useState(true);
-  const [includeAccessories, setIncludeAccessories] = useState(true);
-  const [includeWarranty, setIncludeWarranty] = useState(true);
+  const [storeName, setStoreName] = useState('Prada Store');
+  const [contactPhone, setContactPhone] = useState('0412-5166645');
+  const [locationCity, setLocationCity] = useState('Barinas');
+  const [includeBsPrice, setIncludeBsPrice] = useState(false);
+  const [includeAccessories, setIncludeAccessories] = useState(false);
+  const [includeWarranty, setIncludeWarranty] = useState(false);
   const [includeCallToAction, setIncludeCallToAction] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [imageCopied, setImageCopied] = useState(false);
 
   // Phone to use (or multi-selection mode)
   const phone = selectedPhone || allPhones.find(p => p.status === 'disponible_para_venta') || allPhones[0];
@@ -50,55 +54,54 @@ export const SocialPostModal: React.FC<SocialPostModalProps> = ({
   const priceUsdt = phone.status === 'vendido' ? (phone.soldPriceUsdt || phone.projectedPriceUsdt) : phone.projectedPriceUsdt;
   const priceBs = usdtToBs(priceUsdt, rates);
 
+  // Foto del equipo (foto propia cargada o render predeterminado oficial de Apple)
+  const phoneImage = phone.primaryImage || (phone.images && phone.images[0]) || getPresetIPhoneImage(phone.model, phone.color);
+
   const generatePostContent = (): string => {
     const accessoriesText = phone.accessories?.trim() 
       ? phone.accessories 
       : 'Solo equipo (sin accesorios)';
-    const batteryText = phone.batteryHealth ? `🔋 Batería: ${phone.batteryHealth}% (Excelente rendimiento)` : '🔋 Batería: Excelente estado / 100% operativa';
-    const warrantyText = phone.warrantyDays ? `🛡️ Garantía: ${phone.warrantyDays} días` : '🛡️ Garantía: 30 días con nosotros';
+    const batteryText = phone.batteryHealth ? `🔋 Batería: ${phone.batteryHealth}%` : '🔋 Batería: Excelente';
+    const warrantyText = phone.warrantyDays ? `🛡️ Garantía: ${phone.warrantyDays} días` : '🛡️ Garantía: 30 días';
     const priceTextUsdt = `$${priceUsdt} USDT / Dólares`;
     const priceTextBs = includeBsPrice ? ` (o ${formatBs(priceBs)} a tasa del día)` : '';
 
     if (activeChannel === 'whatsapp') {
-      return `🔥 *¡DISPONIBLE PARA ENTREGA INMEDIATA!* 🔥
+      return `🔥 ¡DISPONIBLE PARA ENTREGA INMEDIATA! 🔥
 
-📱 *${phone.model}*
-✨ *Condición:* ${phone.condition} (10/10)
-💾 *Almacenamiento:* ${phone.storage || '128GB'}
-🎨 *Color:* ${phone.color || 'Original'}
+📱 ${phone.model}
+✨ Condición: ${phone.condition}
+💾 Almacenamiento: ${phone.storage || '128GB'}
+🎨 Color: ${phone.color || 'Original'}
 ${batteryText}
-🔓 *Liberación:* Libre de fábrica para Digitel, Movistar y Movilnet (4G/5G)
+🔓 Liberación: Libre de fábrica
 
-${includeAccessories && phone.accessories?.trim() ? `🎁 *INCLUYE ACCESORIOS:*\n• ${accessoriesText}\n` : ''}${includeWarranty ? `${warrantyText}\n` : ''}
-💰 *PRECIO ESPECIAL:* *${priceTextUsdt}*${priceTextBs}
+${includeAccessories && phone.accessories?.trim() ? `🎁 Accesorios: ${accessoriesText}\n` : ''}${includeWarranty ? `${warrantyText}\n` : ''}💰 PRECIO ESPECIAL: ${priceTextUsdt}${priceTextBs}
 
-📍 *Entregas:* ${locationCity}
-💳 *Métodos de pago:* Binance USDT, Efectivo $, Pago Móvil, Zelle.
+📍 Entregas: ${locationCity}
+💳 Métodos de pago: Binance USDT, Efectivo $
 
-${includeCallToAction ? `📲 *Escríbeme al privado para apartarlo hoy mismo:* ${contactPhone}` : ''}`;
+${includeCallToAction ? `📲 Escríbeme al privado para apartarlo hoy mismo: ${contactPhone}` : ''}`;
     }
 
     if (activeChannel === 'instagram') {
-      return `✨ ¡NUEVO INGRESO EN STOCK! ✨
+      return `🔥 ¡DISPONIBLE PARA ENTREGA INMEDIATA! 🔥
 
-¿Buscando renovar tu equipo al mejor precio? Llévate este *${phone.model}* listo para usar y garantizado 🚀
+📱 ${phone.model}
+✨ Condición: ${phone.condition}
+💾 Almacenamiento: ${phone.storage || '128GB'}
+🎨 Color: ${phone.color || 'Original'}
+${batteryText}
+🔓 Liberación: Libre de fábrica
 
-📌 *Ficha Técnica:*
-• Condición: ${phone.condition}
-• Capacidad: ${phone.storage || '128GB'}
-• Color: ${phone.color || 'Original'}
-• ${batteryText}
-• 100% Libre para todas las operadoras
+${includeAccessories && phone.accessories?.trim() ? `🎁 Accesorios: ${accessoriesText}\n` : ''}${includeWarranty ? `🛡️ ${warrantyText}\n` : ''}💰 PRECIO ESPECIAL: ${priceTextUsdt}${priceTextBs}
 
-${includeAccessories && phone.accessories?.trim() ? `📦 *Incluye:* ${accessoriesText}\n` : ''}${includeWarranty ? `🛡️ ${warrantyText}\n` : ''}
-💵 *Precio:* ${priceTextUsdt}${priceTextBs}
+📍 Entregas: ${locationCity}
+💳 Métodos de pago: Binance USDT, Efectivo $
 
-📍 Entregas personales en ${locationCity}
-🛵 Delivery disponible y envíos asegurados por Zoom a nivel nacional.
+${includeCallToAction ? `📲 Escríbeme al privado para apartarlo hoy mismo: ${contactPhone}` : ''}
 
-👇 *Déjanos un DM o haz clic en el enlace de la biografía para más info.*
-
-#TelefonosVenezuela #VentaDeTelefonos #iPhonesVenezuela #Barinas #TechVenezuela #ComprasEbayVenezuela #BinanceVzla #Garantia`;
+#TelefonosVenezuela #iPhonesVenezuela #Barinas #VentaDeTelefonos #AppleVenezuela`;
     }
 
     if (activeChannel === 'marketplace') {
@@ -106,14 +109,15 @@ ${includeAccessories && phone.accessories?.trim() ? `📦 *Incluye:* ${accessori
 
 - Condición: ${phone.condition}
 - Capacidad: ${phone.storage || '128GB'}
-- Batería: ${phone.batteryHealth ? `${phone.batteryHealth}%` : 'Excelente'}
-- Libre para Digitel, Movistar, Movilnet
-- Incluye: ${accessoriesText}
-- Garantía escrita de ${phone.warrantyDays || 30} días
+- Color: ${phone.color || 'Original'}
+- ${batteryText}
+- Liberación: Libre de fábrica
 
-PRECIO: $${priceUsdt} (Aceptamos USDT Binance, Efectivo, Pago Móvil BCV)
+PRECIO: $${priceUsdt} USDT / Dólares
 Ubicación: ${locationCity}
-Contacto directo por WhatsApp: ${contactPhone}`;
+Métodos de pago: Binance USDT, Efectivo $
+
+📲 WhatsApp directo: ${contactPhone}`;
     }
 
     // Catalog broadcast (List of all available items)
@@ -122,18 +126,16 @@ Contacto directo por WhatsApp: ${contactPhone}`;
       const pPrice = p.projectedPriceUsdt;
       const pBs = usdtToBs(pPrice, rates);
       const bText = p.batteryHealth ? ` [Bat: ${p.batteryHealth}%]` : '';
-      return `${idx + 1}. 📱 *${p.model}* (${p.condition})${bText}\n   💵 *${formatUsdt(pPrice)}*${includeBsPrice ? ` ~ ${formatBs(pBs)}` : ''}`;
+      return `${idx + 1}. 📱 *${p.model}* (${p.condition}, ${p.storage || '128GB'})${bText}\n   💵 *${formatUsdt(pPrice)}*${includeBsPrice ? ` ~ ${formatBs(pBs)}` : ''}`;
     }).join('\n\n');
 
     return `📢 *LISTA DE TELÉFONOS EN STOCK - ${storeName.toUpperCase()}* 📢
 📅 *Actualizado:* ${new Date().toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' })}
-Tasa del día: ${formatBs(rates.binanceUsdtRate)}/USDT
 
 ${itemsListText || '📱 No hay equipos marcados como disponibles en este momento.'}
 
-🛡️ *Todos los equipos incluyen garantía de 30 días y accesorios.*
 📍 Entregas en ${locationCity}
-💳 Aceptamos Binance USDT, Efectivo $, Pago Móvil.
+💳 Aceptamos Binance USDT, Efectivo $.
 
 📲 *Pedidos & Consultas al:* ${contactPhone}`;
   };
@@ -144,6 +146,55 @@ ${itemsListText || '📱 No hay equipos marcados como disponibles en este moment
     navigator.clipboard.writeText(textContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownloadImage = async () => {
+    try {
+      const response = await fetch(phoneImage);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${phone.model.replace(/\s+/g, '_')}_${phone.color || 'phone'}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (e) {
+      window.open(phoneImage, '_blank');
+    }
+  };
+
+  const handleCopyImage = async () => {
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = phoneImage;
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob(async (blob) => {
+          if (blob && navigator.clipboard && (window as any).ClipboardItem) {
+            await navigator.clipboard.write([
+              new (window as any).ClipboardItem({ 'image/png': blob })
+            ]);
+            setImageCopied(true);
+            setTimeout(() => setImageCopied(false), 2000);
+          } else {
+            handleDownloadImage();
+          }
+        }, 'image/png');
+      }
+    } catch (err) {
+      handleDownloadImage();
+    }
   };
 
   const handleOpenWhatsApp = () => {
@@ -165,11 +216,11 @@ ${itemsListText || '📱 No hay equipos marcados como disponibles en este moment
               <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base flex items-center gap-2">
                 <span>Generador de Publicaciones</span>
                 <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                  1-Clic
+                  Foto + Texto
                 </span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Copia o envía textos con emojis para WhatsApp, Instagram y Marketplace
+                Plantilla limpia con foto predeterminada lista para WhatsApp, Instagram y Marketplace
               </p>
             </div>
           </div>
@@ -235,21 +286,64 @@ ${itemsListText || '📱 No hay equipos marcados como disponibles en este moment
         {/* Content Body */}
         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           
-          {/* Item Selector if in single mode */}
+          {/* Item Selector & Picture Preview */}
           {activeChannel !== 'catalog_broadcast' && (
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-amber-50 dark:bg-slate-800 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-slate-700">
-                  <Smartphone className="w-4 h-4" />
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 shrink-0 shadow-inner group">
+                  <img
+                    src={phoneImage}
+                    alt={phone.model}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                  />
+                  <div className="absolute bottom-0 inset-x-0 bg-black/60 text-[9px] text-white text-center py-0.5">
+                    Foto
+                  </div>
                 </div>
+
                 <div>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Equipo Seleccionado</span>
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{phone.model}</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold block">
+                    Equipo Seleccionado
+                  </span>
+                  <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                    {phone.model} ({phone.storage || '128GB'})
+                  </span>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
+                    <span>Color: <strong>{phone.color || 'Original'}</strong></span>
+                    <span>•</span>
+                    <span>Bat: <strong>{phone.batteryHealth || 85}%</strong></span>
+                  </div>
                 </div>
               </div>
-              <div className="text-right">
-                <span className="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400">{formatUsdt(priceUsdt)}</span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-mono">{formatBs(priceBs)}</span>
+
+              {/* Quick Image Copy / Download Buttons */}
+              <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-2">
+                <div className="text-left sm:text-right">
+                  <span className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                    {formatUsdt(priceUsdt)}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleCopyImage}
+                    className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[11px] font-semibold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                    title="Copiar imagen para pegarla en WhatsApp o Instagram"
+                  >
+                    {imageCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <ImageIcon className="w-3.5 h-3.5 text-amber-500" />}
+                    <span>{imageCopied ? '¡Foto Copiada!' : 'Copiar Foto'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDownloadImage}
+                    className="p-1.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[11px] font-semibold transition cursor-pointer"
+                    title="Descargar Foto del Teléfono"
+                  >
+                    <Download className="w-3.5 h-3.5 text-sky-500" />
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -273,7 +367,7 @@ ${itemsListText || '📱 No hay equipos marcados como disponibles en este moment
                 onChange={(e) => setIncludeAccessories(e.target.checked)}
                 className="rounded accent-emerald-500"
               />
-              <span>Regalos / Mica</span>
+              <span>Accesorios / Regalos</span>
             </label>
 
             <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer select-none">
@@ -283,7 +377,7 @@ ${itemsListText || '📱 No hay equipos marcados como disponibles en este moment
                 onChange={(e) => setIncludeWarranty(e.target.checked)}
                 className="rounded accent-emerald-500"
               />
-              <span>30d Garantía</span>
+              <span>Garantía</span>
             </label>
 
             <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer select-none">
@@ -300,7 +394,7 @@ ${itemsListText || '📱 No hay equipos marcados como disponibles en este moment
           {/* Quick Customization Row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
             <div>
-              <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">Nombre de tu Tienda / Vendedor</label>
+              <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">Nombre de tu Tienda</label>
               <input
                 type="text"
                 value={storeName}
@@ -318,7 +412,7 @@ ${itemsListText || '📱 No hay equipos marcados como disponibles en este moment
               />
             </div>
             <div>
-              <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">Ciudad / Ubicación</label>
+              <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">Entregas / Ubicación</label>
               <input
                 type="text"
                 value={locationCity}
@@ -341,7 +435,7 @@ ${itemsListText || '📱 No hay equipos marcados como disponibles en este moment
             </div>
 
             <textarea
-              rows={10}
+              rows={11}
               readOnly
               value={textContent}
               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl p-3.5 text-xs text-slate-800 dark:text-slate-200 font-mono leading-relaxed focus:outline-hidden focus:border-slate-400 dark:focus:border-slate-700 select-all"
