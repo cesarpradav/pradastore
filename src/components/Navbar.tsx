@@ -274,13 +274,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           ) : (
             <button
-              onClick={onOpenCloudSyncModal || onLoginGoogle}
+              onClick={onOpenCloudSyncModal}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold shadow-xs transition cursor-pointer"
-              title="Conectar con Google para sincronizar tus iPhone en todos tus dispositivos"
+              title="Ingresa con tu correo para sincronizar tus iPhone en todos tus dispositivos"
             >
               <Cloud className="w-3.5 h-3.5 text-white" />
-              <span className="hidden sm:inline">Guardar en Nube</span>
-              <span className="text-[9px] bg-white/20 px-1 py-0.2 rounded font-bold">Google</span>
+              <span className="hidden sm:inline">Ingresar con Correo</span>
             </button>
           )}
 

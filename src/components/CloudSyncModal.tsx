@@ -214,22 +214,9 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                   <button
                     type="submit"
                     disabled={isSubmittingAuth || isSyncing}
-                    className="flex-1 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs transition cursor-pointer text-center shadow-md shadow-emerald-950/40"
+                    className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs transition cursor-pointer text-center shadow-md shadow-emerald-950/40"
                   >
                     {isSubmittingAuth ? 'Conectando...' : 'Entrar y Sincronizar'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await onLoginGoogle();
-                      await refreshCounts();
-                    }}
-                    disabled={isSyncing}
-                    className="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition cursor-pointer flex items-center gap-1.5"
-                    title="Si ya configuraste Google OAuth"
-                  >
-                    <Cloud className="w-3.5 h-3.5" />
-                    <span>Con Google</span>
                   </button>
                 </div>
                 <p className="text-[10px] text-slate-500">
@@ -259,7 +246,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                   <div className="flex items-center justify-between text-[11px] text-slate-400">
                     <span className="flex items-center gap-1.5">
                       <CloudCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>En la Nube (Google Cloud)</span>
+                      <span>En la Nube (Supabase Cloud)</span>
                     </span>
                     <button
                       onClick={refreshCounts}
@@ -364,7 +351,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
               1. <strong>En el primer lugar (donde cargaste los iPhone):</strong> Inicia sesión y pulsa <em>&quot;Subir este equipo a la Nube&quot;</em> para asegurarte de que tu inventario quede 100% respaldado.
             </p>
             <p>
-              2. <strong>En el segundo lugar:</strong> Inicia sesión con el mismo correo ({currentUser?.email || 'tu cuenta Google'}) y pulsa <em>&quot;Sincronizar y Unificar Todo&quot;</em>. Los iPhone aparecerán de inmediato.
+              2. <strong>En el segundo lugar:</strong> Inicia sesión con el mismo correo ({currentUser?.email || 'tu correo y clave'}) y pulsa <em>&quot;Sincronizar y Unificar Todo&quot;</em>. Los iPhone aparecerán de inmediato.
             </p>
             <p>
               3. A partir de ese momento, <strong>cada cambio que hagas se sincroniza en vivo</strong> en tiempo real.

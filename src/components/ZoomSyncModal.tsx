@@ -6,7 +6,7 @@ import {
   parseZoomEmailContent, 
   applyZoomEventToPhone 
 } from '../services/zoomGmailService';
-import { getCachedAccessToken, requestGmailPermission } from '../services/firebase';
+import { getCachedAccessToken, requestGmailPermission } from '../services/supabaseDatabase';
 import { 
   X, 
   Mail, 

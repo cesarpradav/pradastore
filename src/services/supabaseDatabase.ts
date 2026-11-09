@@ -20,14 +20,25 @@ export type AuthUser = {
   accessToken?: string | null;
 };
 
+// In-memory token caching for Google Workspace APIs (Gmail)
+let cachedAccessToken: string | null = null;
+export const getCachedAccessToken = (): string | null => cachedAccessToken;
+export const setCachedAccessToken = (token: string | null) => {
+  cachedAccessToken = token;
+};
+
 // Convert Supabase User to consistent user object
-export function mapSupabaseUser(user: User | null): AuthUser | null {
+export function mapSupabaseUser(user: User | null, providerToken?: string | null): AuthUser | null {
   if (!user) return null;
+  if (providerToken) {
+    cachedAccessToken = providerToken;
+  }
   return {
     uid: user.id,
     email: user.email || null,
     displayName: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Usuario',
     photoURL: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+    accessToken: providerToken || cachedAccessToken,
   };
 }
 
@@ -35,11 +46,19 @@ export function mapSupabaseUser(user: User | null): AuthUser | null {
 export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
   // Check initial session
   supabase.auth.getSession().then(({ data: { session } }) => {
-    callback(session?.user ? mapSupabaseUser(session.user) : null);
+    if (session?.provider_token) {
+      cachedAccessToken = session.provider_token;
+    }
+    callback(session?.user ? mapSupabaseUser(session.user, session.provider_token) : null);
   });
 
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-    callback(session?.user ? mapSupabaseUser(session.user) : null);
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT' || !session) {
+      cachedAccessToken = null;
+    } else if (session.provider_token) {
+      cachedAccessToken = session.provider_token;
+    }
+    callback(session?.user ? mapSupabaseUser(session.user, session.provider_token) : null);
   });
 
   return () => {
@@ -47,22 +66,53 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
   };
 }
 
-// Iniciar sesión con Correo y Contraseña
-export async function loginWithEmail(email: string, password: string): Promise<AuthUser> {
+// Iniciar sesión con Correo y Contraseña (con opción de registro explícito o automático)
+export async function loginWithEmail(email: string, password: string, isSignUp = false): Promise<AuthUser> {
+  const cleanEmail = email.trim();
+  const cleanPassword = password.trim();
+
+  if (isSignUp) {
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password: cleanPassword,
+    });
+    if (signUpError) throw signUpError;
+    if (!signUpData.user) {
+      throw new Error('No se pudo crear la cuenta.');
+    }
+    if (!signUpData.session) {
+      throw new Error(
+        'Cuenta creada, pero Supabase pide confirmar el correo. Ve a tu panel de Supabase -> Authentication -> Providers -> Email y desactiva "Confirm email" para entrar directo.'
+      );
+    }
+    return mapSupabaseUser(signUpData.user)!;
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: email.trim(),
-    password: password.trim(),
+    email: cleanEmail,
+    password: cleanPassword,
   });
 
   if (error) {
     // Si no existe, intentar auto-registrar la primera vez
     if (error.message?.toLowerCase().includes('invalid login credentials')) {
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password.trim(),
+        email: cleanEmail,
+        password: cleanPassword,
       });
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        // Si ya estaba registrado, entonces la contraseña era incorrecta
+        if (signUpError.message?.toLowerCase().includes('already registered')) {
+          throw new Error('Contraseña incorrecta para este correo.');
+        }
+        throw signUpError;
+      }
       if (signUpData.user) {
+        if (!signUpData.session) {
+          throw new Error(
+            'Tu cuenta fue registrada, pero tienes activado "Confirm email" en Supabase. Revisa tu bandeja de correo o desactiva "Confirm email" en Supabase (Authentication -> Providers -> Email).'
+          );
+        }
         return mapSupabaseUser(signUpData.user)!;
       }
     }
@@ -74,12 +124,13 @@ export async function loginWithEmail(email: string, password: string): Promise<A
 }
 
 // Iniciar sesión con Google OAuth a través de Supabase
-export async function loginWithGoogle(): Promise<void> {
+export async function loginWithGoogle(includeGmailScope = false): Promise<void> {
   const redirectUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
       redirectTo: redirectUrl,
+      scopes: includeGmailScope ? 'https://www.googleapis.com/auth/gmail.readonly' : undefined,
       queryParams: {
         access_type: 'offline',
         prompt: 'consent',
@@ -92,8 +143,22 @@ export async function loginWithGoogle(): Promise<void> {
   }
 }
 
+// Solicitar permiso de lectura de Gmail mediante Google OAuth en Supabase
+export async function requestGmailPermission(): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.provider_token) {
+    cachedAccessToken = session.provider_token;
+    return session.provider_token;
+  }
+
+  await loginWithGoogle(true);
+  // signInWithOAuth redirige al navegador hacia Google
+  throw new Error('Redirigiendo a Google para autorizar el permiso de lectura de Gmail...');
+}
+
 // Cerrar sesión
 export async function logoutSupabase(): Promise<void> {
+  cachedAccessToken = null;
   const { error } = await supabase.auth.signOut();
   if (error) {
     console.error('Error al cerrar sesión:', error);

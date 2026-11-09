@@ -373,19 +373,46 @@ export default function App() {
     }
   }, [currentUser, phones, customers, orders, sellerProfile]);
 
-  // Inicializar Supabase Auth
+  // Inicializar Supabase Auth y Sincronización Automática al Conectar
   useEffect(() => {
     const unsubscribe = onAuthStateChange(async (user) => {
       setCurrentUser(user);
       if (user) {
         const cloud = await getCloudData(user.uid);
-        if (cloud.phones.length > 0 && phones.length === 0) {
+        const demoIds = new Set(INITIAL_PHONES.map((p) => p.id));
+        const hasOnlyDemoPhones =
+          phones.length === 0 || phones.every((p) => demoIds.has(p.id));
+
+        if (cloud.phones.length > 0 && hasOnlyDemoPhones) {
+          // Dispositivo nuevo o con solo datos de demostración -> Cargar inventario real de Supabase
           setPhones(cloud.phones);
           setCustomers(cloud.customers);
           setOrders(cloud.orders);
           if (cloud.profile) setSellerProfile(cloud.profile);
         } else if (phones.length > 0 && cloud.phones.length === 0) {
+          // Primer dispositivo con datos locales y nube vacía -> Subir a Supabase
           syncAllToSupabase(user.uid, phones, customers, orders, sellerProfile).catch(console.error);
+        } else if (cloud.phones.length > 0 && phones.length > 0) {
+          // Ambos tienen datos -> Unificar por fecha de actualización más reciente
+          const mergedPhonesMap = new Map<string, PhoneItem>();
+          cloud.phones.forEach((p) => mergedPhonesMap.set(p.id, p));
+          phones.forEach((local) => {
+            if (demoIds.has(local.id) && !mergedPhonesMap.has(local.id)) return;
+            const cloudItem = mergedPhonesMap.get(local.id);
+            if (!cloudItem) {
+              mergedPhonesMap.set(local.id, local);
+            } else {
+              const localTime = new Date(local.updatedAt || local.createdAt || 0).getTime();
+              const cloudTime = new Date(cloudItem.updatedAt || cloudItem.createdAt || 0).getTime();
+              if (localTime > cloudTime) {
+                mergedPhonesMap.set(local.id, local);
+              }
+            }
+          });
+          setPhones(Array.from(mergedPhonesMap.values()));
+          if (cloud.customers.length > 0) setCustomers(cloud.customers);
+          if (cloud.orders.length > 0) setOrders(cloud.orders);
+          if (cloud.profile) setSellerProfile(cloud.profile);
         }
       }
     });
@@ -1029,7 +1056,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Banner de Bienvenida (Si no está conectado con Google) */}
+      {/* Banner de Bienvenida (Si no está conectado con Supabase) */}
       {!currentUser && (
         <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-3">
           <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-gradient-to-r from-emerald-950/60 via-slate-900 to-slate-900 border border-emerald-500/30 text-xs text-slate-200 shadow-xs">
@@ -1039,19 +1066,19 @@ export default function App() {
               </div>
               <div>
                 <p className="font-bold text-white">
-                  Respaldo en la nube activo con Supabase
+                  Respaldo en la nube activo
                 </p>
                 <p className="text-slate-400 text-[11px]">
-                  Inicia sesión con tu cuenta de Google para que tu inventario no se borre nunca y puedas gestionarlo desde cualquier celular o PC.
+                  Ingresa con tu correo y contraseña para que tu inventario quede guardado en la nube y puedas verlo desde cualquier celular o PC.
                 </p>
               </div>
             </div>
             <button
-              onClick={handleLoginGoogle}
+              onClick={() => setIsCloudSyncModalOpen(true)}
               className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer shadow-sm shadow-emerald-950"
             >
               <Cloud className="w-3.5 h-3.5" />
-              <span>Conectar Google</span>
+              <span>Ingresar con tu Correo</span>
             </button>
           </div>
         </div>
