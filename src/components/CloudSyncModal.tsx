@@ -15,7 +15,7 @@ import {
   Laptop
 } from 'lucide-react';
 import { PhoneItem, Customer, WarrantyOrder, SellerProfile } from '../types';
-import { getCloudData, AuthUser } from '../services/supabaseDatabase';
+import { getCloudData, AuthUser, loginWithEmail } from '../services/supabaseDatabase';
 
 interface CloudSyncModalProps {
   isOpen: boolean;
@@ -47,6 +47,32 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   const [cloudOrdersCount, setCloudOrdersCount] = useState<number | null>(null);
   const [isLoadingCounts, setIsLoadingCounts] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+
+  // Formulario de Correo / Clave
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailInput || !passwordInput) {
+      setAuthError('Por favor escribe tu correo y contraseña');
+      return;
+    }
+    setAuthError(null);
+    setIsSubmittingAuth(true);
+    try {
+      await loginWithEmail(emailInput, passwordInput);
+      await refreshCounts();
+      setSyncFeedback('¡Sesión iniciada con éxito!');
+    } catch (err: any) {
+      console.error(err);
+      setAuthError(err?.message || 'Error al conectar. Verifica tus datos.');
+    } finally {
+      setIsSubmittingAuth(false);
+    }
+  };
 
   const refreshCounts = async () => {
     if (!currentUser) {
@@ -143,7 +169,7 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                 )}
               </div>
 
-              {currentUser ? (
+              {currentUser && (
                 <button
                   onClick={async () => {
                     await onLogoutGoogle();
@@ -154,20 +180,63 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
                   <LogOut className="w-3 h-3" />
                   <span>Cerrar sesión</span>
                 </button>
-              ) : (
-                <button
-                  onClick={async () => {
-                    await onLoginGoogle();
-                    await refreshCounts();
-                  }}
-                  disabled={isSyncing}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-md shadow-emerald-950/40"
-                >
-                  <Cloud className="w-3.5 h-3.5" />
-                  <span>Iniciar Sesión con Google</span>
-                </button>
               )}
             </div>
+
+            {/* Formulario de Login si no hay usuario */}
+            {!currentUser && (
+              <form onSubmit={handleEmailLogin} className="pt-3 border-t border-slate-800 space-y-2.5">
+                <div className="text-[11px] font-semibold text-slate-300">
+                  Acceso directo con tu Correo y Contraseña:
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="email"
+                    placeholder="Tu correo (ej. cesar@gmail.com)"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                  <input
+                    type="password"
+                    placeholder="Tu contraseña o clave"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-emerald-500"
+                    required
+                  />
+                </div>
+                {authError && (
+                  <p className="text-[11px] text-rose-400 font-medium">{authError}</p>
+                )}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={isSubmittingAuth || isSyncing}
+                    className="flex-1 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs transition cursor-pointer text-center shadow-md shadow-emerald-950/40"
+                  >
+                    {isSubmittingAuth ? 'Conectando...' : 'Entrar y Sincronizar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await onLoginGoogle();
+                      await refreshCounts();
+                    }}
+                    disabled={isSyncing}
+                    className="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition cursor-pointer flex items-center gap-1.5"
+                    title="Si ya configuraste Google OAuth"
+                  >
+                    <Cloud className="w-3.5 h-3.5" />
+                    <span>Con Google</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-500">
+                  * Si es tu primera vez, se creará tu cuenta automáticamente con esa clave.
+                </p>
+              </form>
+            )}
 
             {/* Counts Comparison */}
             {currentUser && (

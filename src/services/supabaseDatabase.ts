@@ -47,6 +47,32 @@ export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
   };
 }
 
+// Iniciar sesión con Correo y Contraseña
+export async function loginWithEmail(email: string, password: string): Promise<AuthUser> {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.trim(),
+    password: password.trim(),
+  });
+
+  if (error) {
+    // Si no existe, intentar auto-registrar la primera vez
+    if (error.message?.toLowerCase().includes('invalid login credentials')) {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password.trim(),
+      });
+      if (signUpError) throw signUpError;
+      if (signUpData.user) {
+        return mapSupabaseUser(signUpData.user)!;
+      }
+    }
+    throw error;
+  }
+
+  if (!data.user) throw new Error('No se pudo iniciar sesión');
+  return mapSupabaseUser(data.user)!;
+}
+
 // Iniciar sesión con Google OAuth a través de Supabase
 export async function loginWithGoogle(): Promise<void> {
   const redirectUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
@@ -225,3 +251,4 @@ export async function syncAllToSupabase(
     supabase.from('profiles').upsert({ id: userId, data: profile, updated_at: timestamp }),
   ]);
 }
+
